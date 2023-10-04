@@ -1,0 +1,22 @@
+{
+  "name": "pseudorandom-aws-lambda",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "unused-exports": "ts-unused-exports tsconfig.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.122",
+    "@types/node-fetch": "^2.6.6",
+    "ts-unused-exports": "^10.0.1",
+    "typescript": "^5.2.2"
+  }
+}
