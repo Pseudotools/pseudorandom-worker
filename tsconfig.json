@@ -9,14 +9,14 @@
           "@/*": ["./*"],
           "@/types/*": ["types/*"],
           "@/utilsCommon/*": ["utilsCommon/*"],
-          "@/utilsWorker/*": ["utilsWorker/*"],
+          "@/utilsWorker/*": ["utils/*"],
         },        
     },
     "include": [
         "*.ts",
         "types/**/*.ts",
         "utilsCommon/**/*.ts"
-, "utilsWorker/dataConversion.ts", "utilsWorker/replicateApiServices.ts"    ],
+, "utils/dataConversion.ts", "utils/replicateApiServices.ts", "utils/transactionServices.ts", "utils/predictionJobServices.ts", "utils/userServices.ts", "utils/renderServices.ts", "utils/storageServices.ts", "utils/supabaseServiceClient.ts"    ],
     "exclude": [
         "node_modules"
     ]

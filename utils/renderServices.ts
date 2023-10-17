@@ -7,7 +7,7 @@ import { Render } from '@/types/Render';
 
 
 
-export const createRendersInDatabase = async (renders: Render[]): Promise<any> => {
+const createRendersInDatabase = async (renders: Render[]): Promise<any> => {
     const { data, error } = await supabaseServiceRoleClient
         .from('renders')
         .insert(renders);  // Inserting an array of render objects
@@ -22,7 +22,7 @@ export const createRendersInDatabase = async (renders: Render[]): Promise<any> =
 }
 
 
-export const updateRendersInDatabase = async (renders: Render[]): Promise<any> => {
+const updateRendersInDatabase = async (renders: Render[]): Promise<any> => {
     // Making sure renders array is not empty
     if (renders.length === 0) {
         console.error('Renders array is empty. No update is performed.');
@@ -63,7 +63,6 @@ export const updateRendersInDatabase = async (renders: Render[]): Promise<any> =
         throw error;
     }
 };
-
 
 
 export async function createPendingRendersFromUnresolvedPredictionJob(predictionJob: PredictionJob): Promise<Render[]> {
@@ -131,8 +130,6 @@ export const updateRenderStatus = async (renderId: string, status: string): Prom
     console.log(`Render ${renderId} updated successfully with status: ${status}`);
     return data; // Though it's null, returning for consistency if needed in future.
 };
-
-
 
 
 export async function updateRendersFromResolvedPredictionJob(predictionJob: PredictionJob, renders: Render[]): Promise<Render[]> {

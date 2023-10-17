@@ -5,25 +5,6 @@ import { getUserProfileById } from './userServices';
 
 
 //
-// getPredictionJobById
-// given a jobId, return the corresponding PredictionJob object
-//
-export const getPredictionJobById = async (jobId: string): Promise<PredictionJob | null> => {
-    const { data, error } = await supabaseServiceRoleClient
-        .from('predictionJobs')
-        .select('*') 
-        .eq('jobId', jobId)
-        .single(); 
-
-    if (error) {
-        throw error;
-    }
-
-    return data ?? null;  
-}
-
-
-//
 // given a PredictionJob object, create a new PredictionJob in the database
 // details of the PredictionJob object are defined in dataConversion/SQSEventToJobInitialization
 //

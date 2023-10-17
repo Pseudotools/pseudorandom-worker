@@ -1,13 +1,13 @@
 import { SQSEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 
 import { PredictionJobInitialization, PredictionJob, SemanticPredictionIncoming, RefinementPredictionIncoming } from './types/Prediction';
-import { createPredictionJobInDatabase, updatePredictionJobStatus, updatePredictionJobAsError, updatePredictionJobAsSuccess, createErrorPredictionJobInDatabase, updatePredictionJobWithServerLog, updatePredictionJobWithRenderIds } from './utilsCommon/predictionJobServices';
-import { PredictionInitializationData, ReplicatePredictionInitalizer, ReplicatePredictionRetriver } from './utilsWorker/replicateApiServices';
-import { initializationDataToPredictionJob, SQSEventToJobInitialization, replicateResponseToSemanticPredictionIncoming, replicateResponseToRefinementPredictionIncoming } from './utilsWorker/dataConversion';
 
-import { getUserProfileById } from './utilsCommon/userServices';
-import { createChargeAndAdjustUserBalance } from './utilsCommon/transactionServices';
-import { createPendingRendersFromUnresolvedPredictionJob, updateRendersFromResolvedPredictionJob, updateRenderStatus } from './utilsCommon/renderServices';
+import { PredictionInitializationData, ReplicatePredictionInitalizer, ReplicatePredictionRetriver } from './utils/replicateApiServices';
+import { initializationDataToPredictionJob, SQSEventToJobInitialization, replicateResponseToSemanticPredictionIncoming, replicateResponseToRefinementPredictionIncoming } from './utils/dataConversion';
+import { createChargeAndAdjustUserBalance } from './utils/transactionServices';
+import { createPredictionJobInDatabase, updatePredictionJobStatus, updatePredictionJobAsError, updatePredictionJobAsSuccess, createErrorPredictionJobInDatabase, updatePredictionJobWithServerLog, updatePredictionJobWithRenderIds } from './utils/predictionJobServices';
+import { getUserProfileById } from './utils/userServices';
+import { createPendingRendersFromUnresolvedPredictionJob, updateRendersFromResolvedPredictionJob, updateRenderStatus } from './utils/renderServices';
 
 
 const MAX_WAIT_TIME = 8 * 60 * 1000; // 8 minutes in milliseconds
