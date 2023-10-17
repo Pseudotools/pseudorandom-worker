@@ -1,6 +1,15 @@
-interface PredictionBase {
+import { HasSeed, HasSeedVariations, HasBasicPrompts, HasSemanticInfo, HasSemanticImgInfo, HasDepthInfo, HasRootImgInfo, HasSemanticConfig, HasRefinementConfig } from './HasElements';
+
+
+interface PredictionBase  {
     type: 'error' | 'semantic' | 'refinement' ; 
 }
+
+
+//
+// Prediction Jobs
+//
+
 
 
 //
@@ -12,7 +21,8 @@ export interface PredictionJob extends PredictionBase {
     jobId: string; // before sending to worker
     createdAt: string;
     updatedAt: string;
-    userId: string; // we check this userId against our database
+    userId: string | null; // we check this userId against our database
+    sessionId: string; 
     transactionId: string | null; // refers to a transaction in our database, set if successful
     originEnvironment: 'webapp' | 'rhino';
     originId: string;
@@ -24,16 +34,30 @@ export interface PredictionJob extends PredictionBase {
     deliveryTime: number | null;
     errorMessage: string | null;
     serverLog: string | null;
+    expectedImageCount: number;
+    expectedImageWidth: number;
+    expectedImageHeight: number;
 }
 // PredictionJobInitialization
 // describes the data we need to create a new PredictionJob
 export interface PredictionJobInitialization {
     jobId: string;
     userId: string;
+    sessionId: string;
     originEnvironment: 'webapp' | 'rhino';    
     originId: string;
+    expectedImageCount: number;
+    expectedImageWidth: number;
+    expectedImageHeight: number;    
     predictionOutgoing: SemanticPredictionOutgoingMultiseed | SemanticPredictionOutgoingSingleseed | RefinementPredictionOutgoing;
 }
+
+
+
+
+//
+// Incoming Predictions
+//
 
 
 
@@ -46,31 +70,13 @@ export interface PredictionIncoming extends PredictionBase {
     id: string;
     output: {
         seeds: number[];
-        urls_result: string[];
+        urlsResult: string[];
+        imgSize: number[];
     };
     metrics: {
         predict_time: number; // time of prediction measured by Replicate
     };
 }
-
-//
-// PredictionOutgoing
-// Parent class of SemanticPredictionOutgoing, RefinementPredictionOutgoing
-// defines the structure we need to provide to APIs on Replciate
-export interface PredictionOutgoing extends PredictionBase  {
-    pmt_style: string;
-    pmt_outpaint: string;
-    pmt_negative: string;
-    map_semantic_str: string;
-
-    img_depth: string;
-}
-
-
-//
-// Semantic Types
-//
-
 
 //
 // SemanticPredictionIncoming
@@ -80,55 +86,6 @@ export interface SemanticPredictionIncoming extends PredictionIncoming {
     type: 'semantic';
     // everything is done in PredictionDataIncoming
 }
-
-//
-// SemanticPredictionOutgoing
-// defines the structure we need to provide to the Semantic API on Replciate
-// look to children interfaces for different styles of seed generation
-export interface SemanticPredictionOutgoing extends PredictionOutgoing  {
-    type: 'semantic';
-    subtype: 'error' | 'single-seed' | 'multi-seed'; 
-    // all prompts handled in PredictionOutgoing
-    // img_depth handled in PredictionOutgoing
-    img_semantic: string;
-
-    num_inference_steps_base: number,
-    num_inference_steps_inpaint: number,
-    num_inference_steps_outpaint: number,
-    noisiness_img_base: number,
-    noise_periodicity_img_base: number,
-    strength_inpaint: number,
-    strength_outpaint: number,
-    controlnet_conditioning_scale_base: number,
-    controlnet_conditioning_scale_inpaint: number,
-    controlnet_conditioning_scale_outpaint: number,
-    control_guidance_start_base: number,
-    control_guidance_end_base: number,
-    control_guidance_start_inpaint: number,
-    control_guidance_end_inpaint: number,
-    control_guidance_start_outpaint: number,
-    control_guidance_end_outpaint: number,
-    guidance_scale_base: number,
-    guidance_scale_inpaint: number,
-    guidance_scale_outpaint: number,
-}
-
-// only appropriate for generating multiple images with random seeds
-export interface SemanticPredictionOutgoingMultiseed extends SemanticPredictionOutgoing {
-    subtype: 'multi-seed';
-    num_seed_variations: number;
-}
-
-// only appropriate for generating a single image with a set seed
-export interface SemanticPredictionOutgoingSingleseed extends SemanticPredictionOutgoing {
-    subtype: 'single-seed';
-    seed: number;
-}
-
-
-//
-// Refinement Types
-//
 
 
 //
@@ -141,24 +98,57 @@ export interface RefinementPredictionIncoming extends PredictionIncoming {
 }
 
 
+
+
+
+
+//
+// Outgoing Predictions
+//
+
+interface PredictionOutgoingBase extends PredictionBase, HasBasicPrompts, HasDepthInfo, HasSemanticInfo {
+    
+}
+
+
+//
+// SemanticPredictionOutgoing
+// defines the structure we need to provide to the Semantic API on Replciate
+// look to children interfaces for different styles of seed generation
+export interface SemanticPredictionOutgoing extends PredictionOutgoingBase, HasSemanticImgInfo, HasSemanticConfig  {
+    type: 'semantic';
+    subtype: 'error' | 'singleseed' | 'multiseed'; 
+    // all prompts from PredictionOutgoing
+    // imgDepth from PredictionOutgoing
+    // imgSemantic from HasSemanticImgInfo
+    // configuration from HasSemanticConfig
+}
+
+// only appropriate for generating multiple images with random seeds
+export interface SemanticPredictionOutgoingMultiseed extends SemanticPredictionOutgoing, HasSeedVariations {
+    subtype: 'multiseed';
+    // numSeedVariations from HasSeedVariations
+}
+
+// only appropriate for generating a single image with a set seed
+export interface SemanticPredictionOutgoingSingleseed extends SemanticPredictionOutgoing, HasSeed {
+    subtype: 'singleseed';
+    // seed from HasSeed
+}
+
+
 //
 // RefinementPredictionOutgoing
 //
 // defines the structure we need to provide to the Refiner API on Replciate
 // only appropriate for generating a single image with a single given seed (or a random seed if seed is not set)
-export interface RefinementPredictionOutgoing extends PredictionOutgoing {
+export interface RefinementPredictionOutgoing extends PredictionOutgoingBase, HasSeed, HasRootImgInfo, HasRefinementConfig {
     type: 'refinement';
-    // all prompts handled in PredictionOutgoing
-    // img_depth handled in PredictionOutgoing
-    seed: number;
-    img_base: string;
-
-    num_inference_steps_base: number;
-    num_inference_steps_refiner: number;
-    strength: number;
-    controlnet_conditioning_scale: number;
-    control_guidence_start: number;
-    control_guidence_end: number;
+    // all prompts from PredictionOutgoing
+    // imgDepth from PredictionOutgoing
+    // seed from HasSeed
+    // imgRoot from HasRootImgInfo
+    // configuration from HasRefinementConfig
 }
 
 

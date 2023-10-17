@@ -1,14 +1,14 @@
-import { supabaseServiceRoleClient } from './supabaseClient';
+import { supabaseServiceRoleClient } from './supabaseServiceClient';
 
-import { UserPartial } from '../types/User';
+import { UserProfile } from '@/types/UserProfile';
 
-
-// given a userId, return the corresponding UserPartial object
+// Get User
+// given a userId, return the corresponding UserProfile object
 // 
-export const getUserById = async (userId: string): Promise<UserPartial> => {
+export const getUserProfileById = async (userId: string): Promise<UserProfile> => {
     const { data, error } = await supabaseServiceRoleClient
-        .from('users')  // Replace 'users' with your actual users table name
-        .select('email, userId, userSecret, balance, role')  // Selecting only the required fields
+        .from('userProfiles') 
+        .select('*')  // Selecting only the required fields
         .eq('userId', userId)
         .single();  // Expecting a single record
 
@@ -24,9 +24,50 @@ export const getUserById = async (userId: string): Promise<UserPartial> => {
         throw new Error(message);
     }
 
-    console.log(`User ${userId} retrieved successfully.`);
+    //console.log(`User ${userId} retrieved successfully.`);
     return data;
 };
+
+
+
+// Vaidate User PAT
+// given a userId, return the corresponding UserProfile object
+// 
+export const validatePAT = async (userId: string, token: string): Promise<boolean> => {
+    const { data, error } = await supabaseServiceRoleClient
+        .from('userPats')
+        .select('*')
+        .eq('userId', userId)
+        .eq('token', token) // Assuming tokens are stored as plain text. Hash and compare if they are hashed.
+        .single();
+
+    if (error) {
+        throw new Error(error.message || 'validatePAT: An unexpected error occurred while validating the token');
+    }
+
+    if (!data) {
+        throw new Error('validatePAT: No matching token found');
+    }
+
+    const currentTimestamp = new Date();
+    const expiryTimestamp = new Date(data.expiresAt);
+
+    if (expiryTimestamp < currentTimestamp) {
+        const { error: deleteError } = await supabaseServiceRoleClient
+            .from('userPats')
+            .delete()
+            .eq('id', data.id);
+
+        if (deleteError) {
+            throw new Error(deleteError.message || 'validatePAT: Failed to delete expired token');
+        }
+
+        throw new Error('validatePAT: Token is expired');
+    }
+
+    return true;
+};
+
 
 
 
@@ -41,7 +82,7 @@ export async function adjustUserBalance(
     console.log("starting adjustUserBalance");
     try {
         const { data: user, error: fetchError } = await supabaseServiceRoleClient
-            .from('users')
+            .from('userProfiles')
             .select('*')
             .eq('userId', userId)
             .single();
@@ -53,7 +94,7 @@ export async function adjustUserBalance(
         console.log("newBalance " + newBalance);
 
         const { error: updateError } = await supabaseServiceRoleClient
-            .from('users')
+            .from('userProfiles')
             .update({ balance: newBalance })
             .eq('userId', userId);
 
@@ -61,7 +102,7 @@ export async function adjustUserBalance(
 
         // Fetch the user data again to verify the update
         const { data: updatedUser, error: verificationError } = await supabaseServiceRoleClient
-            .from('users')
+            .from('userProfiles')
             .select('*')
             .eq('userId', userId)
             .single();

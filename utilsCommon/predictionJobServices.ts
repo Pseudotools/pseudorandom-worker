@@ -1,6 +1,26 @@
-import { PredictionJob, PredictionJobInitialization } from '../types/Prediction';
-import { supabaseServiceRoleClient } from './supabaseClient';
-import { getUserById } from './userServices';
+import { PredictionJob, PredictionJobInitialization } from '@/types/Prediction';
+import { supabaseServiceRoleClient } from './supabaseServiceClient';
+import { getUserProfileById } from './userServices';
+
+
+//
+// getPredictionJobById
+// given a jobId, return the corresponding PredictionJob object
+//
+export const getPredictionJobById = async (jobId: string): Promise<PredictionJob | null> => {
+    const { data, error } = await supabaseServiceRoleClient
+        .from('predictionJobs')
+        .select('*') 
+        .eq('jobId', jobId)
+        .single(); 
+
+    if (error) {
+        throw error;
+    }
+
+    return data ?? null;  
+}
+
 
 //
 // given a PredictionJob object, create a new PredictionJob in the database
@@ -121,9 +141,9 @@ export const createErrorPredictionJobInDatabase = async (
     errorMessage: string, 
 ): Promise<any> => {
 
-    let userId = predictionJobInitialization.userId;
+    let userId : string | null = predictionJobInitialization.userId;
     try {
-        await getUserById(userId);
+        await getUserProfileById(userId);
     } catch (error) {
         console.log(`User ${userId} not found, setting userId to null.`);
         userId = null;

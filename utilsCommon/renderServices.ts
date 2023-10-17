@@ -1,9 +1,9 @@
 
-import { supabaseServiceRoleClient } from './supabaseClient';
+import { supabaseServiceRoleClient } from './supabaseServiceClient';
 
-import { PredictionJob } from '../types/Prediction';
-import { postRemoteURLToStorage } from './storageServices';
-import { Render } from '../types/Render';
+import { PredictionJob } from '@/types/Prediction';
+import { postReplicateURLToStorage } from './storageServices';
+import { Render } from '@/types/Render';
 
 
 
@@ -26,7 +26,7 @@ export const createRendersInDatabase = async (renders: Render[]): Promise<any> =
 export async function createRendersFromResolvedPredictionJob(predictionJob: PredictionJob): Promise<string[]> {
     const renderIds: string[] = [];
     const renders: Render[] = [];
-    const urlsResult = predictionJob.predictionIncoming.output.urls_result;
+    const urlsResult = predictionJob.predictionIncoming.output.urlsResult;
 
     try {
         for (let i = 0; i < urlsResult.length; i++) {
@@ -34,32 +34,7 @@ export async function createRendersFromResolvedPredictionJob(predictionJob: Pred
             const numberSuffix = String(i).padStart(2, '0');  // Create a two-digit suffix
             const renderId = `${predictionJob.jobId}-${numberSuffix}`;  // Append the suffix to the jobId
 
-            const supabaseURL = await postRemoteURLToStorage(replicateURL, predictionJob.type, renderId);
-
-            // TODO
-            // REPLACE THIS WITH REPLICATED REPORTED VALUES
-            // Get image dimensions
-            /*
-            async function getImageDimensions(url: string): Promise<{ width: number, height: number }> {
-                const response = await fetch(url);
-                const buffer = await response.buffer();
-                const metadata = await sharp(buffer).metadata();
-                return { width: metadata.width!, height: metadata.height! };
-            }
-
-            let width, height;
-            try {
-                const imageDimensions = await getImageDimensions(replicateURL);
-                width = imageDimensions.width;
-                height = imageDimensions.height;
-            } catch (error) {
-                console.error('Error getting image dimensions:', error);
-                throw error;
-            }          
-            */  
-            /// END TODO
-
-
+            const supabaseURL = await postReplicateURLToStorage(replicateURL, predictionJob.type, renderId);
 
             const render: Render = {
                 renderId: renderId,
@@ -68,8 +43,8 @@ export async function createRendersFromResolvedPredictionJob(predictionJob: Pred
                 userId: predictionJob.userId,
                 createdAt: new Date().toISOString(),
                 type: predictionJob.type,
-                width: 99,  // Update these with actual values as needed
-                height: 99
+                width: predictionJob.predictionIncoming.output.imgSize[0],
+                height: predictionJob.predictionIncoming.output.imgSize[1]
             };
 
             renderIds.push(renderId);  // Collect renderIds

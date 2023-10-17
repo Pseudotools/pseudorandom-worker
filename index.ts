@@ -1,12 +1,16 @@
 import { SQSEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 
 import { PredictionJobInitialization, PredictionJob, SemanticPredictionIncoming, RefinementPredictionIncoming } from './types/Prediction';
-import { initializationDataToPredictionJob, SQSEventToJobInitialization, replicateResponseToSemanticPredictionIncoming, replicateResponseToRefinementPredictionIncoming } from './utils/dataConversion';
-import { createPredictionJobInDatabase, updatePredictionJobStatus, updatePredictionJobAsError, updatePredictionJobAsSuccess, createErrorPredictionJobInDatabase, updatePredictionJobWithServerLog } from './utils/predictionJobServices';
-import { PredictionInitializationData, ReplicatePredictionInitalizer, ReplicatePredictionRetriver } from './utils/replicateApiServices';
-import { getUserById } from './utils/userServices';
-import { createChargeAndAdjustUserBalance } from './utils/transactionServices';
-import { createRendersFromResolvedPredictionJob } from './utils/renderServices';
+import { createPredictionJobInDatabase, updatePredictionJobStatus, updatePredictionJobAsError, updatePredictionJobAsSuccess, createErrorPredictionJobInDatabase, updatePredictionJobWithServerLog } from './utilsCommon/predictionJobServices';
+import { PredictionInitializationData, ReplicatePredictionInitalizer, ReplicatePredictionRetriver } from './utilsWorker/replicateApiServices';
+import { initializationDataToPredictionJob, SQSEventToJobInitialization, replicateResponseToSemanticPredictionIncoming, replicateResponseToRefinementPredictionIncoming } from './utilsWorker/dataConversion';
+
+import { getUserProfileById } from './utilsCommon/userServices';
+import { createChargeAndAdjustUserBalance } from './utilsCommon/transactionServices';
+import { createRendersFromResolvedPredictionJob } from './utilsCommon/renderServices';
+
+
+const MAX_WAIT_TIME = 8 * 60 * 1000; // 8 minutes in milliseconds
 
 
 export const handler = async (event: SQSEvent, context: Context): Promise<APIGatewayProxyResult> => {
@@ -53,11 +57,10 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         // Authenticate the user
         // check for permission to create a prediction job
         // upon failure, create an "error" prediction in the database
-        const user = await getUserById(predictionJob.userId);
+        const user = await getUserProfileById(predictionJob.userId);
         if (!user) { throw new Error('No user found with ID ' + predictionJob.userId); }
         if (user.role == 'suspended') { throw new Error('User is suspended'); }
         if (user.balance == 0) { throw new Error('User has insufficient balance'); }
-
 
         // Select the correct version ID based on the prediction job type
         let replicateVersionId;
@@ -86,20 +89,26 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         //
 
         let currentStatus = 'pending';
+        const startTime = Date.now();
         while (true) {
+            // Check if max waiting time has been exceeded
+            if (Date.now() - startTime > MAX_WAIT_TIME) {
+                throw new Error('Server timeout: maximum wait time exceeded.');
+            }
+        
             const retrievalResponse = await ReplicatePredictionRetriver(replicteResponse.id);
             if (!retrievalResponse.success) { throw new Error(retrievalResponse.error); }
             replicteResponse = retrievalResponse.data;
             console.log(currentStatus);
-
+        
             if (replicteResponse.status !== currentStatus) {
                 currentStatus = replicteResponse.status;
                 await updatePredictionJobStatus(jobId, currentStatus);
             }
-
+        
             // break if we've reached a terminal state
             if (['succeeded', 'canceled', 'failed'].includes(replicteResponse.status)) { break; }
-
+        
             // Pause for a while before the next iteration, to avoid hammering the API.
             await new Promise(res => setTimeout(res, 3000));
         }

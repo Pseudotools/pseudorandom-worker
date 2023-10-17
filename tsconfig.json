@@ -4,12 +4,19 @@
         "outDir": "./dist",
         "rootDir": "./",
         "module": "commonjs",
+        "baseUrl": ".",
+        "paths": {
+          "@/*": ["./*"],
+          "@/types/*": ["types/*"],
+          "@/utilsCommon/*": ["utilsCommon/*"],
+          "@/utilsWorker/*": ["utilsWorker/*"],
+        },        
     },
     "include": [
         "*.ts",
         "types/**/*.ts",
-        "utils/**/*.ts"
-    ],
+        "utilsCommon/**/*.ts"
+, "utilsWorker/dataConversion.ts", "utilsWorker/replicateApiServices.ts"    ],
     "exclude": [
         "node_modules"
     ]

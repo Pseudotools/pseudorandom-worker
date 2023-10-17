@@ -1,4 +1,4 @@
-import { supabaseServiceRoleClient } from './supabaseClient';
+import { supabaseServiceRoleClient } from './supabaseServiceClient';
 import { adjustUserBalance } from './userServices';
 import { v4 as uuidv4 } from 'uuid';
 

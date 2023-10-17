@@ -1,9 +1,10 @@
 import { SQSEvent } from 'aws-lambda';
-import { PredictionJob, PredictionJobInitialization, PredictionIncoming, SemanticPredictionIncoming, RefinementPredictionIncoming } from '../types/Prediction';
+import { PredictionJob, PredictionJobInitialization, PredictionIncoming, SemanticPredictionIncoming, RefinementPredictionIncoming } from '@/types/Prediction';
 
 //
 // Validate SQS event and extract initialization data
-//
+// NOTE - THIS FUNCTION ONLY GETS THE FIRST RECORD IN THE BODY!
+// ARE WE SURE WE'LL ALWAYS ONLY GET ONE?
 export const SQSEventToJobInitialization = (event: SQSEvent): PredictionJobInitialization => {
     if (!event.Records || event.Records.length === 0) { throw new Error('No records found in the event'); }
 
@@ -28,6 +29,7 @@ export const initializationDataToPredictionJob = (initData: PredictionJobInitial
         createdAt: currentDate,
         updatedAt: currentDate,
         userId: initData.userId,
+        sessionId: initData.sessionId,
         transactionId: null,
         originEnvironment: initData.originEnvironment,
         originId: initData.originId,
@@ -39,6 +41,10 @@ export const initializationDataToPredictionJob = (initData: PredictionJobInitial
         deliveryTime: null, // time between initial request and final delivery
         errorMessage: null,
         serverLog: null,
+
+        expectedImageCount: initData.expectedImageCount,
+        expectedImageWidth: initData.expectedImageWidth,
+        expectedImageHeight: initData.expectedImageHeight,
     };
 }
 
@@ -76,7 +82,7 @@ const extractPredictionIncoming = (response: any): PredictionIncoming => {
     // Helper function to extract and validate the "output" property
     const extractOutput = (output: any): PredictionIncoming['output'] => {
         if (typeof output !== 'object' || output === null) throw new Error("extractPredictionIncoming: Invalid output");
-        if (!Array.isArray(output.urls_result) || !output.urls_result.every((url: any) => typeof url === 'string')) throw new Error("extractPredictionIncoming: Invalid urls_result in output");
+        if (!Array.isArray(output.urlsResult) || !output.urlsResult.every((url: any) => typeof url === 'string')) throw new Error("extractPredictionIncoming: Invalid urlsResult in output");
 
         // could be "seeds" in an array, or "seed" as a singleton
         let finalSeeds;
@@ -90,7 +96,8 @@ const extractPredictionIncoming = (response: any): PredictionIncoming => {
 
         return {
             seeds: finalSeeds,
-            urls_result: output.urls_result
+            urlsResult: output.urlsResult,
+            imgSize: output.imgSize
         };
     };
 

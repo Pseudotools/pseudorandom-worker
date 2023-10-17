@@ -1,4 +1,4 @@
-import { SemanticPredictionOutgoingMultiseed, SemanticPredictionOutgoingSingleseed, RefinementPredictionOutgoing } from '../types/Prediction';
+import { SemanticPredictionOutgoingMultiseed, SemanticPredictionOutgoingSingleseed, RefinementPredictionOutgoing } from '@/types/Prediction';
 
 export interface GenericAPIDataResponseStructure<T> {
     success: boolean;
