@@ -1,13 +1,13 @@
 import { SQSEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 
 import { PredictionJobInitialization, PredictionJob, SemanticPredictionIncoming, RefinementPredictionIncoming } from './types/Prediction';
-import { createPredictionJobInDatabase, updatePredictionJobStatus, updatePredictionJobAsError, updatePredictionJobAsSuccess, createErrorPredictionJobInDatabase, updatePredictionJobWithServerLog } from './utilsCommon/predictionJobServices';
+import { createPredictionJobInDatabase, updatePredictionJobStatus, updatePredictionJobAsError, updatePredictionJobAsSuccess, createErrorPredictionJobInDatabase, updatePredictionJobWithServerLog, updatePredictionJobWithRenderIds } from './utilsCommon/predictionJobServices';
 import { PredictionInitializationData, ReplicatePredictionInitalizer, ReplicatePredictionRetriver } from './utilsWorker/replicateApiServices';
 import { initializationDataToPredictionJob, SQSEventToJobInitialization, replicateResponseToSemanticPredictionIncoming, replicateResponseToRefinementPredictionIncoming } from './utilsWorker/dataConversion';
 
 import { getUserProfileById } from './utilsCommon/userServices';
 import { createChargeAndAdjustUserBalance } from './utilsCommon/transactionServices';
-import { createRendersFromResolvedPredictionJob } from './utilsCommon/renderServices';
+import { createPendingRendersFromUnresolvedPredictionJob, updateRendersFromResolvedPredictionJob, updateRenderStatus } from './utilsCommon/renderServices';
 
 
 const MAX_WAIT_TIME = 8 * 60 * 1000; // 8 minutes in milliseconds
@@ -33,11 +33,13 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
     //
     let jobId;
     let predictionJob: PredictionJob;
+    let renders;
     try {
         predictionJob = initializationDataToPredictionJob(predictionJobInitialization);
         await createPredictionJobInDatabase(predictionJob);
         jobId = predictionJob.jobId;
         console.log('PredictionJob created successfully')
+
     } catch (error) {
         // If we can't create a prediction job in the database
         // we create an "error" prediction in the database
@@ -52,8 +54,8 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         }
         return { statusCode: 500, body: JSON.stringify('An error occurred when initializing PredictionJob.: ' + errorMessage) };
     }
-    try {
 
+    try {
         // Authenticate the user
         // check for permission to create a prediction job
         // upon failure, create an "error" prediction in the database
@@ -68,6 +70,12 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         if (predictionJob.type == 'refinement') { replicateVersionId = process.env.REFINEMENT_VERSION_ID; }
         if (replicateVersionId == undefined) { throw new Error('No version ID found for prediction job type: ' + predictionJob.type) }
 
+        //
+        // Create unresolved Renders in the database
+        // any errors after this must be caught and the job updated to error status
+        //
+        renders = await createPendingRendersFromUnresolvedPredictionJob(predictionJob) // Extracting renderId from each render object and assigning to predictionJob.renderIds
+        updatePredictionJobWithRenderIds(predictionJob, renders); // update predictionJob in database with renderIds
 
         //
         // Do the initial API call to Replicate
@@ -95,20 +103,26 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
             if (Date.now() - startTime > MAX_WAIT_TIME) {
                 throw new Error('Server timeout: maximum wait time exceeded.');
             }
-        
+
             const retrievalResponse = await ReplicatePredictionRetriver(replicteResponse.id);
             if (!retrievalResponse.success) { throw new Error(retrievalResponse.error); }
             replicteResponse = retrievalResponse.data;
             console.log(currentStatus);
-        
+
+            // status update
             if (replicteResponse.status !== currentStatus) {
                 currentStatus = replicteResponse.status;
                 await updatePredictionJobStatus(jobId, currentStatus);
+
+                for (const render of renders) {
+                    await updateRenderStatus(render.renderId, currentStatus);
+                }
+
             }
-        
+
             // break if we've reached a terminal state
             if (['succeeded', 'canceled', 'failed'].includes(replicteResponse.status)) { break; }
-        
+
             // Pause for a while before the next iteration, to avoid hammering the API.
             await new Promise(res => setTimeout(res, 3000));
         }
@@ -146,11 +160,9 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
 
 
                 //
-                // Store Results
+                // Update Renders
                 //
-                const renderIds: string[] = await createRendersFromResolvedPredictionJob(predictionJob);
-                predictionJob.renderIds = renderIds;
-
+                renders = updateRendersFromResolvedPredictionJob(predictionJob, renders);
 
                 //
                 // Transaction
@@ -183,6 +195,14 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
                     throw new Error('Failed to update server log in the database. Also, Prediction failed or was canceled. Server reported error: ' + replicteResponse.message);
                 }
 
+                // update render status
+                if (renders) {
+                    for (const render of renders) {
+                        await updateRenderStatus(render.renderId, "error");
+                    }
+                    console.log('Renders marked as error');
+                }
+
                 throw new Error('Prediction failed or was canceled. Server reported error: ' + replicteResponse.error); // This will be caught below.
 
             default:
@@ -196,6 +216,14 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         try {
             const updatedJob = await updatePredictionJobAsError(jobId, errorMessage);
             console.log('Job marked as error', updatedJob);
+
+            // update render status
+            if (renders) {
+                for (const render of renders) {
+                    await updateRenderStatus(render.renderId, "error");
+                }
+                console.log('Renders marked as error');
+            }
         } catch (updateError) {
             console.error('Error updating job as error:', updateError);
         }

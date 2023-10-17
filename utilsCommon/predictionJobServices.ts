@@ -1,4 +1,5 @@
 import { PredictionJob, PredictionJobInitialization } from '@/types/Prediction';
+import { Render } from '@/types/Render';
 import { supabaseServiceRoleClient } from './supabaseServiceClient';
 import { getUserProfileById } from './userServices';
 
@@ -45,7 +46,35 @@ export const updatePredictionJobAsSuccess = async (predictionJob: PredictionJob)
     // Set the updatedAt field to the current time
     predictionJob.updatedAt = new Date().toISOString();
     predictionJob.status = 'succeeded';
+
+    const { data, error, count } = await supabaseServiceRoleClient
+        .from('predictionJobs')
+        .update(predictionJob)
+        .eq('jobId', predictionJob.jobId);
+
+    if (error) {
+        const message = `Failed to update job ${predictionJob.jobId}`;
+        console.error(message, error);
+        throw new Error(message);
+    }
+
+    if (count === 0) {
+        const message = `No job found with ID ${predictionJob.jobId} to update.`;
+        console.error(message);
+        throw new Error(message);
+    }
+
+    console.log(`Job ${predictionJob.jobId} updated successfully.`);
+    return data;  // Though it's null, returning for consistency if needed in future.
+};
+
+
+// given a PredictionJob object, update the corresponding PredictionJob in the database
+//
+export const updatePredictionJobWithRenderIds = async (predictionJob: PredictionJob, renders: Render[]): Promise<any> => {
+    // Set the updatedAt field to the current time
     predictionJob.updatedAt = new Date().toISOString();
+    predictionJob.renderIds = renders.map(render => render.renderId);
 
     const { data, error, count } = await supabaseServiceRoleClient
         .from('predictionJobs')
