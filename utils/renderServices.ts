@@ -17,7 +17,7 @@ const createRendersInDatabase = async (renders: Render[]): Promise<any> => {
         throw error;
     }
 
-    console.log('Renders inserted successfully', data);
+    console.log('createRendersInDatabase successful');
     return data;  
 }
 
@@ -52,7 +52,7 @@ const updateRendersInDatabase = async (renders: Render[]): Promise<any> => {
                 throw error;
             }
 
-            //console.log('Render updated successfully', data);
+            console.log('updateRendersInDatabase successful');
             return data;
         });
 
@@ -91,7 +91,7 @@ export async function createPendingRendersFromUnresolvedPredictionJob(prediction
         }
 
         await createRendersInDatabase(renders);  // Removed inner try-catch
-        console.log('Renders saved successfully');
+        console.log('createPendingRendersFromUnresolvedPredictionJob successful');
         return renders;
 
     } catch (error) {
@@ -157,7 +157,7 @@ export async function updateRendersFromResolvedPredictionJob(predictionJob: Pred
 
         try {
             await updateRendersInDatabase(renders);
-            console.log('Renders updated successfully');
+            console.log('updateRendersFromResolvedPredictionJob successful');
         } catch (error) {
             console.error('Failed to update renders in database:', error);
             throw error;  // You may want to rethrow the error to handle it upstream

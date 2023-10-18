@@ -134,6 +134,7 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
                 //
                 // Handle the successful case
                 console.log('Prediction succeeded.');
+                predictionJob.status = 'succeeded';
 
 
                 // Extract PredictionIncoming data from the response
@@ -160,11 +161,6 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
 
 
                 //
-                // Update Renders
-                //
-                renders = updateRendersFromResolvedPredictionJob(predictionJob, renders);
-
-                //
                 // Transaction
                 // charge the user and record the transaction
                 const transactionId = await createChargeAndAdjustUserBalance({
@@ -178,6 +174,11 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
                 predictionJob.deliveryTime = (new Date().getTime() - workerStartTime.getTime()) / 1000;
                 predictionJob.serverLog = replicteResponse.logs;
                 await updatePredictionJobAsSuccess(predictionJob);
+
+                //
+                // Update Renders
+                //
+                await updateRendersFromResolvedPredictionJob(predictionJob, renders);
 
 
                 return { statusCode: 200, body: JSON.stringify('Prediction job exited successfully') };
