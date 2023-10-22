@@ -22,7 +22,7 @@ export interface PredictionJob extends PredictionBase {
     createdAt: string;
     updatedAt: string;
     userId: string | null; // we check this userId against our database
-    sessionId: string; 
+    sessionId: string; // the renderSessionId
     transactionId: string | null; // refers to a transaction in our database, set if successful
     originEnvironment: 'webapp' | 'rhino';
     originId: string;
@@ -35,21 +35,30 @@ export interface PredictionJob extends PredictionBase {
     errorMessage: string | null;
     serverLog: string | null;
     expectedImageCount: number;
-    expectedImageWidth: number;
-    expectedImageHeight: number;
+    expectedImageWidth: number | null;
+    expectedImageHeight: number | null;
 }
+
 // PredictionJobInitialization
 // describes the data we need to create a new PredictionJob
-export interface PredictionJobInitialization {
-    jobId: string;
+// but without the jobId assigned.
+// this is what we recieve at the API endpoint
+export interface PredictionJobInitializationUnresolved {
     userId: string;
     sessionId: string;
     originEnvironment: 'webapp' | 'rhino';    
     originId: string;
     expectedImageCount: number;
-    expectedImageWidth: number;
-    expectedImageHeight: number;    
+    expectedImageWidth: number | null;
+    expectedImageHeight: number | null;    
     predictionOutgoing: SemanticPredictionOutgoingMultiseed | SemanticPredictionOutgoingSingleseed | RefinementPredictionOutgoing;
+}
+
+// PredictionJobInitialization
+// describes the data we need to create a new PredictionJob
+// this is what we provide to the worker
+export interface PredictionJobInitialization extends PredictionJobInitializationUnresolved{
+    jobId: string;
 }
 
 
@@ -106,7 +115,7 @@ export interface RefinementPredictionIncoming extends PredictionIncoming {
 // Outgoing Predictions
 //
 
-interface PredictionOutgoingBase extends PredictionBase, HasBasicPrompts, HasDepthInfo, HasSemanticInfo {
+export interface PredictionOutgoingBase extends PredictionBase, HasBasicPrompts, HasDepthInfo, HasSemanticInfo {
     
 }
 
@@ -152,3 +161,14 @@ export interface RefinementPredictionOutgoing extends PredictionOutgoingBase, Ha
 }
 
 
+export const isSemanticSingleSeedPredictionOutgoing = (obj: any): obj is SemanticPredictionOutgoingSingleseed => {
+    return obj && obj.type === 'semantic' && obj.subtype === 'singleseed';
+};
+
+export const isSemanticMultiSeedPredictionOutgoing = (obj: any): obj is SemanticPredictionOutgoingMultiseed => {
+    return obj && obj.type === 'semantic' && obj.subtype === 'multiseed';
+};
+
+export const isRefinementPredictionOutgoing = (obj: any): obj is RefinementPredictionOutgoing => {
+    return obj && obj.type === 'refinement';
+};

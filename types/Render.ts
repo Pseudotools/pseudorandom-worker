@@ -16,4 +16,5 @@ export interface Render {
     status: 'error' | 'pending' | 'starting' | 'processing' | 'succeeded' | 'canceled' | 'failed';
     width: number | null;  // Width of the image
     height: number | null; // Height of the image
+    seed: number | null;  // Seed used to generate the image
 }

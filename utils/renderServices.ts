@@ -43,7 +43,8 @@ const updateRendersInDatabase = async (renders: Render[]): Promise<any> => {
                     type: render.type,
                     status: render.status,
                     width: render.width,
-                    height: render.height             
+                    height: render.height,
+                    seed: render.seed        
                 })
                 .eq('renderId', render.renderId);  // Matching renderId to identify the record to update
 
@@ -85,7 +86,8 @@ export async function createPendingRendersFromUnresolvedPredictionJob(prediction
                 type: predictionJob.type,
                 status: 'pending',
                 width: null,
-                height: null
+                height: null,
+                seed: null
             };
             renders.push(render);  // Collect renders
         }
@@ -152,6 +154,7 @@ export async function updateRendersFromResolvedPredictionJob(predictionJob: Pred
             render.status = predictionJob.status;
             render.width = predictionJob.predictionIncoming.output.imgSize[0];
             render.height = predictionJob.predictionIncoming.output.imgSize[1];
+            render.seed = predictionJob.predictionIncoming.output.seeds[i];
             render.updatedAt = new Date().toISOString();
         }
 
