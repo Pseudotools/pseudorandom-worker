@@ -1,11 +1,11 @@
-import { supabaseServiceRoleClient } from './supabaseServiceClient';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 // Supabase Storage constants
 const semanticRenderBucketName = "semanticRenders"
 const refinementRenderBucketName = "refinementRenders"
 
 
-export async function postReplicateURLToStorage(imageUrl: string, imgType: string, guid: string): Promise<string> {
+export async function postReplicateURLToStorage(imageUrl: string, imgType: string, guid: string, supabaseServiceRoleClient: SupabaseClient): Promise<string> {
     try {
         let bucketName;
 

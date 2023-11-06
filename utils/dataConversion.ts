@@ -45,6 +45,8 @@ export const initializationDataToPredictionJob = (initData: PredictionJobInitial
         expectedImageCount: initData.expectedImageCount,
         expectedImageWidth: initData.expectedImageWidth,
         expectedImageHeight: initData.expectedImageHeight,
+
+        predictionModelVersionId: initData.predictionModelVersionId
     };
 }
 

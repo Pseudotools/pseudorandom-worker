@@ -1,5 +1,4 @@
-
-import { supabaseServiceRoleClient } from './supabaseServiceClient';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 import { PredictionJob } from '@/types/Prediction';
 import { postReplicateURLToStorage } from './storageServices';
@@ -7,7 +6,7 @@ import { Render } from '@/types/Render';
 
 
 
-const createRendersInDatabase = async (renders: Render[]): Promise<any> => {
+const createRendersInDatabase = async (renders: Render[], supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     const { data, error } = await supabaseServiceRoleClient
         .from('renders')
         .insert(renders);  // Inserting an array of render objects
@@ -22,7 +21,7 @@ const createRendersInDatabase = async (renders: Render[]): Promise<any> => {
 }
 
 
-const updateRendersInDatabase = async (renders: Render[]): Promise<any> => {
+const updateRendersInDatabase = async (renders: Render[], supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     // Making sure renders array is not empty
     if (renders.length === 0) {
         console.error('Renders array is empty. No update is performed.');
@@ -66,7 +65,7 @@ const updateRendersInDatabase = async (renders: Render[]): Promise<any> => {
 };
 
 
-export async function createPendingRendersFromUnresolvedPredictionJob(predictionJob: PredictionJob): Promise<Render[]> {
+export async function createPendingRendersFromUnresolvedPredictionJob(predictionJob: PredictionJob, supabaseServiceRoleClient: SupabaseClient): Promise<Render[]> {
     const renders: Render[] = [];
     try {
         if (predictionJob.userId === null) { throw new Error('createPendingRendersFromUnresolvedPredictionJob: PredictionJob userId is null'); }
@@ -92,7 +91,7 @@ export async function createPendingRendersFromUnresolvedPredictionJob(prediction
             renders.push(render);  // Collect renders
         }
 
-        await createRendersInDatabase(renders);  // Removed inner try-catch
+        await createRendersInDatabase(renders, supabaseServiceRoleClient);  // Removed inner try-catch
         console.log('createPendingRendersFromUnresolvedPredictionJob successful');
         return renders;
 
@@ -107,7 +106,7 @@ export async function createPendingRendersFromUnresolvedPredictionJob(prediction
 // given a jobId and a status 
 // update the PredictionJob in the database
 //
-export const updateRenderStatus = async (renderId: string, status: string): Promise<any> => {
+export const updateRenderStatus = async (renderId: string, status: string, supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     const updatedRender = {
         status: status,
         updatedAt: new Date().toISOString(),
@@ -134,7 +133,7 @@ export const updateRenderStatus = async (renderId: string, status: string): Prom
 };
 
 
-export async function updateRendersFromResolvedPredictionJob(predictionJob: PredictionJob, renders: Render[]): Promise<Render[]> {
+export async function updateRendersFromResolvedPredictionJob(predictionJob: PredictionJob, renders: Render[], supabaseServiceRoleClient: SupabaseClient): Promise<Render[]> {
     if (predictionJob.predictionIncoming === null) { throw new Error('updateRendersFromResolvedPredictionJob: PredictionJob predictionIncoming is null'); }
 
     const urlsResult = predictionJob.predictionIncoming.output.urlsResult;
@@ -148,7 +147,7 @@ export async function updateRendersFromResolvedPredictionJob(predictionJob: Pred
             const replicateURL = urlsResult[i];
             const render = renders[i];
 
-            const supabaseURL = await postReplicateURLToStorage(replicateURL, predictionJob.type, render.renderId);
+            const supabaseURL = await postReplicateURLToStorage(replicateURL, predictionJob.type, render.renderId, supabaseServiceRoleClient);
 
             render.url = supabaseURL;
             render.status = predictionJob.status;
@@ -159,7 +158,7 @@ export async function updateRendersFromResolvedPredictionJob(predictionJob: Pred
         }
 
         try {
-            await updateRendersInDatabase(renders);
+            await updateRendersInDatabase(renders, supabaseServiceRoleClient);
             console.log('updateRendersFromResolvedPredictionJob successful');
         } catch (error) {
             console.error('Failed to update renders in database:', error);

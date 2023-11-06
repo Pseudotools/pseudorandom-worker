@@ -1,8 +1,7 @@
-import { supabaseServiceRoleClient } from './supabaseServiceClient';
+import { SupabaseClient } from '@supabase/supabase-js';
+
 import { adjustUserBalance } from './userServices';
 import { v4 as uuidv4 } from 'uuid';
-
-
 
 
 export type ChargeCreationData = {
@@ -11,7 +10,7 @@ export type ChargeCreationData = {
     subtype: 'semanticPredictionJob' | 'refinementPredictionJob' | 'error';
     description?: string;
 }
-export async function createChargeAndAdjustUserBalance(chargeData: ChargeCreationData): Promise<string> {
+export async function createChargeAndAdjustUserBalance(chargeData: ChargeCreationData, supabaseServiceRoleClient: SupabaseClient): Promise<string> {
     console.log("Starting createChargeAndAdjustBalance");
     
     const { chargeAmount, userId, subtype, description } = chargeData;
@@ -42,7 +41,7 @@ export async function createChargeAndAdjustUserBalance(chargeData: ChargeCreatio
 
     // Adjust the user's balance
     try {
-        const adjustmentSuccessful = await adjustUserBalance(userId, -chargeAmount); // Subtracting chargeAmount from user's balance
+        const adjustmentSuccessful = await adjustUserBalance(userId, -chargeAmount, supabaseServiceRoleClient); // Subtracting chargeAmount from user's balance
 
         if (!adjustmentSuccessful) {
             console.error('Failed to adjust the user balance');

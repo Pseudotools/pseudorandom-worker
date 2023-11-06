@@ -1,5 +1,7 @@
 import { SQSEvent, Context, APIGatewayProxyResult } from 'aws-lambda';
 
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
 import { PredictionJobInitialization, PredictionJob, SemanticPredictionIncoming, RefinementPredictionIncoming } from './types/Prediction';
 
 import { PredictionInitializationData, ReplicatePredictionInitalizer, ReplicatePredictionRetriver } from './utils/replicateApiServices';
@@ -27,6 +29,27 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
     }
 
 
+    // databaseURL has been passed in predictionJobInitialization
+    // extract databaseURL and set it to process.env.NEXT_PUBLIC_SUPABASE_URL
+    const { environment } = predictionJobInitialization;
+    if (!environment || typeof environment !== 'string') {
+        console.error('Invalid or missing environment');
+        return { statusCode: 400, body: JSON.stringify('Bad Request: Invalid or missing environment') };
+    }
+    
+    // Use environment variables to get Supabase URL and anon key
+    let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL_PROD;
+    let supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY_PROD;
+    if (environment === 'development') {
+        supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL_DEV;
+        supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY_DEV;
+    } 
+
+    const supabaseServiceRoleClient: SupabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey); // Initialize and export the Supabase client
+
+
+
+
     //
     // Create a prediction job in the database
     // any errors after this must be caught and the job updated to error status
@@ -34,9 +57,10 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
     let jobId;
     let predictionJob: PredictionJob;
     let renders;
+
     try {
         predictionJob = initializationDataToPredictionJob(predictionJobInitialization);
-        await createPredictionJobInDatabase(predictionJob);
+        await createPredictionJobInDatabase(predictionJob, supabaseServiceRoleClient);
         jobId = predictionJob.jobId;
         console.log('PredictionJob created successfully')
 
@@ -47,7 +71,7 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         console.error('An error occurred when initializing PredictionJob.', error);
         const errorMessage = error.message;
         try {
-            const updatedJob = await createErrorPredictionJobInDatabase(predictionJobInitialization, errorMessage);
+            const updatedJob = await createErrorPredictionJobInDatabase(predictionJobInitialization, errorMessage, supabaseServiceRoleClient);
             console.log('Created error-like job', updatedJob);
         } catch (updateError) {
             console.error('Error creating error-like job', updateError);
@@ -59,23 +83,19 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         // Authenticate the user
         // check for permission to create a prediction job
         // upon failure, create an "error" prediction in the database
-        const user = await getUserProfileById(predictionJob.userId);
+        const user = await getUserProfileById(predictionJob.userId, supabaseServiceRoleClient);
         if (!user) { throw new Error('No user found with ID ' + predictionJob.userId); }
         if (user.role == 'suspended') { throw new Error('User is suspended'); }
         if (user.balance == 0) { throw new Error('User has insufficient balance'); }
 
-        // Select the correct version ID based on the prediction job type
-        let replicateVersionId;
-        if (predictionJob.type == 'semantic') { replicateVersionId = process.env.SEMANTIC_VERSION_ID; }
-        if (predictionJob.type == 'refinement') { replicateVersionId = process.env.REFINEMENT_VERSION_ID; }
-        if (replicateVersionId == undefined) { throw new Error('No version ID found for prediction job type: ' + predictionJob.type) }
+        
 
         //
         // Create unresolved Renders in the database
         // any errors after this must be caught and the job updated to error status
         //
-        renders = await createPendingRendersFromUnresolvedPredictionJob(predictionJob) // Extracting renderId from each render object and assigning to predictionJob.renderIds
-        updatePredictionJobWithRenderIds(predictionJob, renders); // update predictionJob in database with renderIds
+        renders = await createPendingRendersFromUnresolvedPredictionJob(predictionJob, supabaseServiceRoleClient) // Extracting renderId from each render object and assigning to predictionJob.renderIds
+        updatePredictionJobWithRenderIds(predictionJob, renders, supabaseServiceRoleClient); // update predictionJob in database with renderIds
 
         //
         // Do the initial API call to Replicate
@@ -83,7 +103,7 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
 
         // Create PredictionInitializationData with some dummy values.
         const predictionInitData: PredictionInitializationData = {
-            version: replicateVersionId,
+            version: predictionJob.predictionModelVersionId,
             input: predictionJob.predictionOutgoing // Assuming predictionOutgoing is defined somewhere
         };
 
@@ -112,10 +132,10 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
             // status update
             if (replicteResponse.status !== currentStatus) {
                 currentStatus = replicteResponse.status;
-                await updatePredictionJobStatus(jobId, currentStatus);
+                await updatePredictionJobStatus(jobId, currentStatus, supabaseServiceRoleClient);
 
                 for (const render of renders) {
-                    await updateRenderStatus(render.renderId, currentStatus);
+                    await updateRenderStatus(render.renderId, currentStatus, supabaseServiceRoleClient);
                 }
 
             }
@@ -139,17 +159,20 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
 
                 // Extract PredictionIncoming data from the response
                 // and set predictionJob.predictionIncoming accordingly
+                let type = null;
                 if (predictionJob.type == 'semantic') {
+                    type = 'semantic';
                     const predictionIncoming: SemanticPredictionIncoming = replicateResponseToSemanticPredictionIncoming(replicteResponse);
                     predictionJob.predictionIncoming = predictionIncoming;
                     predictionJob.computeTime = predictionIncoming.metrics.predict_time;
                 }
                 if (predictionJob.type == 'refinement') {
+                    type = 'refinement';
                     const predictionIncoming: RefinementPredictionIncoming = replicateResponseToRefinementPredictionIncoming(replicteResponse);
                     predictionJob.predictionIncoming = predictionIncoming;
                     predictionJob.computeTime = predictionIncoming.metrics.predict_time;
                 }
-                if (replicateVersionId == undefined) { throw new Error('predictionJob is an unexpected type: ' + predictionJob.type) }
+                if (!type) { throw new Error('predictionJob is an unexpected type: ' + predictionJob.type) }
 
                 // Determine subtype based on predictionJob type
                 let subtype;
@@ -167,18 +190,18 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
                     chargeAmount: predictionJob.computeTime,
                     userId: user.userId,
                     subtype: subtype
-                });
+                }, supabaseServiceRoleClient);
                 predictionJob.transactionId = transactionId;
 
                 // Update the prediction job with other values required by database
                 predictionJob.deliveryTime = (new Date().getTime() - workerStartTime.getTime()) / 1000;
                 predictionJob.serverLog = replicteResponse.logs;
-                await updatePredictionJobAsSuccess(predictionJob);
+                await updatePredictionJobAsSuccess(predictionJob, supabaseServiceRoleClient);
 
                 //
                 // Update Renders
                 //
-                await updateRendersFromResolvedPredictionJob(predictionJob, renders);
+                await updateRendersFromResolvedPredictionJob(predictionJob, renders, supabaseServiceRoleClient);
 
 
                 return { statusCode: 200, body: JSON.stringify('Prediction job exited successfully') };
@@ -190,7 +213,7 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
                 console.log(replicteResponse.logs);
 
                 try {
-                    await updatePredictionJobWithServerLog(jobId, replicteResponse.logs); // set predictionJob.serverLog and update database
+                    await updatePredictionJobWithServerLog(jobId, replicteResponse.logs, supabaseServiceRoleClient); // set predictionJob.serverLog and update database
                 } catch (error) {
                     console.error('Failed to update server log in the database', error);
                     throw new Error('Failed to update server log in the database. Also, Prediction failed or was canceled. Server reported error: ' + replicteResponse.message);
@@ -199,7 +222,7 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
                 // update render status
                 if (renders) {
                     for (const render of renders) {
-                        await updateRenderStatus(render.renderId, "error");
+                        await updateRenderStatus(render.renderId, "error", supabaseServiceRoleClient);
                     }
                     console.log('Renders marked as error');
                 }
@@ -215,13 +238,13 @@ export const handler = async (event: SQSEvent, context: Context): Promise<APIGat
         console.error('error:', error);
         const errorMessage = error.message;
         try {
-            const updatedJob = await updatePredictionJobAsError(jobId, errorMessage);
+            const updatedJob = await updatePredictionJobAsError(jobId, errorMessage, supabaseServiceRoleClient);
             console.log('Job marked as error', updatedJob);
 
             // update render status
             if (renders) {
                 for (const render of renders) {
-                    await updateRenderStatus(render.renderId, "error");
+                    await updateRenderStatus(render.renderId, "error", supabaseServiceRoleClient);
                 }
                 console.log('Renders marked as error');
             }

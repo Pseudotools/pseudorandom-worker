@@ -37,6 +37,7 @@ export interface PredictionJob extends PredictionBase {
     expectedImageCount: number;
     expectedImageWidth: number | null;
     expectedImageHeight: number | null;
+    predictionModelVersionId: string | null;
 }
 
 // PredictionJobInitialization
@@ -59,6 +60,8 @@ export interface PredictionJobInitializationUnresolved {
 // this is what we provide to the worker
 export interface PredictionJobInitialization extends PredictionJobInitializationUnresolved{
     jobId: string;
+    predictionModelVersionId: string;
+    environment: 'development' | 'production';
 }
 
 

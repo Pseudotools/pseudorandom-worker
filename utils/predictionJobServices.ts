@@ -1,6 +1,7 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+
 import { PredictionJob, PredictionJobInitialization } from '@/types/Prediction';
 import { Render } from '@/types/Render';
-import { supabaseServiceRoleClient } from './supabaseServiceClient';
 import { getUserProfileById } from './userServices';
 
 
@@ -8,7 +9,7 @@ import { getUserProfileById } from './userServices';
 // given a PredictionJob object, create a new PredictionJob in the database
 // details of the PredictionJob object are defined in dataConversion/SQSEventToJobInitialization
 //
-export const createPredictionJobInDatabase = async (predictionJob: PredictionJob): Promise<any> => {
+export const createPredictionJobInDatabase = async (predictionJob: PredictionJob, supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     const { data, error } = await supabaseServiceRoleClient
         .from('predictionJobs')
         .insert([predictionJob]);
@@ -23,7 +24,7 @@ export const createPredictionJobInDatabase = async (predictionJob: PredictionJob
 
 // given a PredictionJob object, update the corresponding PredictionJob in the database
 //
-export const updatePredictionJobAsSuccess = async (predictionJob: PredictionJob): Promise<any> => {
+export const updatePredictionJobAsSuccess = async (predictionJob: PredictionJob, supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     // Set the updatedAt field to the current time
     predictionJob.updatedAt = new Date().toISOString();
     predictionJob.status = 'succeeded';
@@ -52,7 +53,7 @@ export const updatePredictionJobAsSuccess = async (predictionJob: PredictionJob)
 
 // given a PredictionJob object, update the corresponding PredictionJob in the database
 //
-export const updatePredictionJobWithRenderIds = async (predictionJob: PredictionJob, renders: Render[]): Promise<any> => {
+export const updatePredictionJobWithRenderIds = async (predictionJob: PredictionJob, renders: Render[], supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     // Set the updatedAt field to the current time
     predictionJob.updatedAt = new Date().toISOString();
     predictionJob.renderIds = renders.map(render => render.renderId);
@@ -83,7 +84,7 @@ export const updatePredictionJobWithRenderIds = async (predictionJob: Prediction
 // given a jobId and a status 
 // update the PredictionJob in the database
 //
-export const updatePredictionJobStatus = async (jobId: string, status: string): Promise<any> => {
+export const updatePredictionJobStatus = async (jobId: string, status: string, supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     const updatedJob = {
         status: status,
         updatedAt: new Date().toISOString(),
@@ -115,7 +116,7 @@ export const updatePredictionJobStatus = async (jobId: string, status: string): 
 // given a jobId and an error message, 
 // update the PredictionJob in the database and set as type 'error'
 //
-export const updatePredictionJobAsError = async (jobId: string, errorMessage: string): Promise<any> => {
+export const updatePredictionJobAsError = async (jobId: string, errorMessage: string, supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     const updatedJob = {
         status: 'error',
         errorMessage: errorMessage,
@@ -149,11 +150,12 @@ export const updatePredictionJobAsError = async (jobId: string, errorMessage: st
 export const createErrorPredictionJobInDatabase = async (
     predictionJobInitialization: PredictionJobInitialization,
     errorMessage: string, 
+    supabaseServiceRoleClient: SupabaseClient
 ): Promise<any> => {
 
     let userId : string | null = predictionJobInitialization.userId;
     try {
-        await getUserProfileById(userId);
+        await getUserProfileById(userId, supabaseServiceRoleClient);
     } catch (error) {
         console.log(`User ${userId} not found, setting userId to null.`);
         userId = null;
@@ -194,7 +196,7 @@ export const createErrorPredictionJobInDatabase = async (
 // given a jobId and a server log, 
 // update the serverLog property of the PredictionJob in the database
 //
-export const updatePredictionJobWithServerLog = async (jobId: string, serverLog: string): Promise<any> => {
+export const updatePredictionJobWithServerLog = async (jobId: string, serverLog: string, supabaseServiceRoleClient: SupabaseClient): Promise<any> => {
     const updatedJob = {
         serverLog: serverLog,
         updatedAt: new Date().toISOString(),

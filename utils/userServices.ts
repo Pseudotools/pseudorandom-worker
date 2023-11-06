@@ -1,11 +1,11 @@
-import { supabaseServiceRoleClient } from './supabaseServiceClient';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 import { UserProfile } from '@/types/UserProfile';
 
 // Get User
 // given a userId, return the corresponding UserProfile object
 // 
-export const getUserProfileById = async (userId: string): Promise<UserProfile> => {
+export const getUserProfileById = async (userId: string, supabaseServiceRoleClient: SupabaseClient): Promise<UserProfile> => {
     const { data, error } = await supabaseServiceRoleClient
         .from('userProfiles') 
         .select('*')  // Selecting only the required fields
@@ -33,7 +33,7 @@ export const getUserProfileById = async (userId: string): Promise<UserProfile> =
 // Vaidate User PAT
 // given a userId, return the corresponding UserProfile object
 // 
-export const validatePAT = async (userId: string, token: string): Promise<boolean> => {
+export const validatePAT = async (userId: string, token: string, supabaseServiceRoleClient: SupabaseClient): Promise<boolean> => {
     const { data, error } = await supabaseServiceRoleClient
         .from('userPats')
         .select('*')
@@ -77,7 +77,8 @@ export const validatePAT = async (userId: string, token: string): Promise<boolea
 
 export async function adjustUserBalance(
     userId: string, 
-    adjustmentAmount: number
+    adjustmentAmount: number,
+    supabaseServiceRoleClient: SupabaseClient
 ): Promise<boolean> {
     console.log("starting adjustUserBalance");
     try {
